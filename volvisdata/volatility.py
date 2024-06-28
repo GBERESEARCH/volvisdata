@@ -544,12 +544,4 @@ class Volatility():
         vol_dict = VolMethods.create_vol_dict(
             params=self.params, surface_models=self.surface_models)
 
-        if self.params['data_output']:
-            data_dict = {
-                'vol_dict': vol_dict,
-                'params': self.params
-            }
-            return data_dict
-
-        return VolMethods.print_skew_report(
-            vol_dict=vol_dict, params=self.params)
+        self.vol_dict=vol_dict
