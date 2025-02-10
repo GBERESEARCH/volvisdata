@@ -397,6 +397,7 @@ class DataPrep():
 
             # Assign an option name of ticker plus strike
             opt_name = params['ticker_label']+'_'+str(strike)
+            print('Put option before vol: ', opt_name)
 
             # store the implied vol results for that strike in the
             # option dictionary
@@ -408,13 +409,14 @@ class DataPrep():
             # option list
             params['opt_list'].append(opt_dict[opt_name])
 
-            print('Put option: ', opt_name)
+            print('Put option after vol: ', opt_name)
 
         # For each put strike price
         for strike in params['call_strikes']:
 
             # Assign an option name of ticker plus strike
             opt_name = params['ticker_label']+'_'+str(strike)
+            print('Call option before vol: ', opt_name)
 
             # store the implied vol results DataFrame for that strike
             # in the option dictionary
@@ -426,7 +428,7 @@ class DataPrep():
             # in the option list
             params['opt_list'].append(opt_dict[opt_name])
 
-            print('Call option: ', opt_name)
+            print('Call option after vol: ', opt_name)
 
         # Concatenate all the option results into a single DataFrame and drop
         # any null values
@@ -663,14 +665,20 @@ class DataPrep():
             except KeyError:
                 print("Key Error with option: Strike="+str(strike)+
                           " TTM="+str(round(row['TTM'], 3))+
-                          " vol="+str(row[input_row])+
+                          " vol="+str(input_row)+
                           " option="+option)
 
             except ValueError:
                 print("Value Error with option: Strike="+str(strike)+
                           " TTM="+str(round(row['TTM'], 3))+
-                          " vol="+str(row[input_row])+
+                          " vol="+str(input_row)+
                           " option="+option)
+                
+            # except:
+            #      print("Other Error with option: Strike="+str(strike)+
+            #               " TTM="+str(round(row['TTM'], 3))+
+            #               " vol="+str(input_row)+
+            #               " option="+option)
 
         # Return warnings to default setting
         warnings.filterwarnings("default", category=RuntimeWarning)
