@@ -9,7 +9,7 @@ vol_params_dict = {
     'ticker_label':None,
     'start_date':None,
     'wait':2,
-    'minopts':None,
+    'minopts': 4,
     'mindays':None,
     'lastmins':None,
     'volume':None,
