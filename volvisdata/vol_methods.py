@@ -622,7 +622,10 @@ class VolMethods():
         """
         params, tables = cls.smooth(params=params, tables=tables)
         data = tables['imp_vol_data_smoothed']
-        t_vols_smooth = data['Smoothed Vol'] * 100
+        try:
+            t_vols_smooth = data['Smoothed Vol'] * 100
+        except KeyError:
+            t_vols_smooth = data['Imp Vol - Last'] * 100
         t_vols = data['Imp Vol - Last'] * 100
         t_strikes = data['Strike']
         t_ttm = data['TTM'] * 365
