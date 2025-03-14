@@ -139,6 +139,8 @@ class Data():
         except KeyError:
             try:
                 extracted_spot = (asset.info['bid'] + asset.info['ask'])/2
+                if (abs(extracted_spot - asset.info['previousClose']) / asset.info['previousClose']) > 0.2:
+                    extracted_spot = asset.info['previousClose']
             except KeyError:
                 try:
                     extracted_spot = asset.info['navPrice']
