@@ -9,7 +9,6 @@ import datetime as dt
 from datetime import date, timedelta
 import random
 import warnings
-from bs4 import BeautifulSoup
 from lxml import html
 import numpy as np
 import pandas as pd
@@ -249,7 +248,8 @@ class DataPrep():
 
             tables['data'] = cls._minopts(params=params, data=tables['data'])
 
-        params, tables = cls._monthlies(params=params, tables=tables)
+        if 'precomputed_data' not in params:
+            params, tables = cls._monthlies(params=params, tables=tables)
 
         return params, tables
 
@@ -644,7 +644,10 @@ class DataPrep():
                 'S':params['spot'],
                 'K':strike,
                 'T':row['TTM'],
-                'r':cls.interest_rate(row['Days'], params['yield_curve']),
+                # 'r':cls.interest_rate(row['Days'], params['yield_curve']),
+                'r': (row['Discount Rate'] if 'precomputed_data' in params
+                      else cls.interest_rate(
+                          row['Days'], params['yield_curve'])),
                 'q':params['q'],
                 'cm':row[input_row],
                 'epsilon':params['epsilon'],
@@ -673,7 +676,7 @@ class DataPrep():
                           " TTM="+str(round(row['TTM'], 3))+
                           " vol="+str(input_row)+
                           " option="+option)
-                
+
             # except:
             #      print("Other Error with option: Strike="+str(strike)+
             #               " TTM="+str(round(row['TTM'], 3))+

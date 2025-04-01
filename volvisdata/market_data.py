@@ -108,7 +108,55 @@ class Data():
 
 
     @staticmethod
-    def get_option_data(params, tables):
+    def process_df_option_data(params: dict, tables: dict)-> tuple[dict, dict]:
+        """
+
+
+        Parameters
+        ----------
+        params : Dict
+            Dictionary of key parameters.
+        tables : dict
+            Dictionary of key tables.
+
+        Returns
+        -------
+        params : Dict
+            Dictionary of key parameters.
+        tables : dict
+            Dictionary of key tables.
+
+        """
+        # Direct path for calibrated data
+        df = params['precomputed_data'].copy()
+
+        params['extracted_spot'] = df['Spot Price'].iloc[0]
+        # params['start_date'] = df['Reference Date'].iloc[0]
+
+        tables['full_data'] = df[[
+            'Contract Symbol',
+            'Last Price',
+            'Bid',
+            'Ask',
+            'Last Trade Date',
+            'Expiry',
+            'Strike',
+            'Option Type',
+            'Open Interest',
+            'Volume',
+            'Implied Volatility',
+            'Discount Rate'
+        ]]
+
+        # Process data through standard pipeline starting with transform
+        params, tables = DataPrep.transform(params=params, tables=tables)
+        params, tables = DataPrep.combine(params=params, tables=tables)
+
+        return params, tables
+
+
+    @staticmethod
+    def get_option_data(params: dict, tables: dict) -> tuple[dict, dict]:
         """
 
 
@@ -116,17 +164,17 @@ class Data():
         ----------
         ticker : TYPE
             DESCRIPTION.
-        params : TYPE
-            DESCRIPTION.
-        tables : TYPE
-            DESCRIPTION.
+        params : Dict
+            Dictionary of key parameters.
+        tables : dict
+            Dictionary of key tables.
 
         Returns
         -------
-        params : TYPE
-            DESCRIPTION.
-        tables : TYPE
-            DESCRIPTION.
+        params : Dict
+            Dictionary of key parameters.
+        tables : dict
+            Dictionary of key tables.
 
         """
         params['option_dict'] = {}
@@ -139,15 +187,16 @@ class Data():
         except KeyError:
             try:
                 extracted_spot = (asset.info['bid'] + asset.info['ask'])/2
-                if (abs(extracted_spot - asset.info['previousClose']) / asset.info['previousClose']) > 0.2:
+                if (abs(extracted_spot - asset.info['previousClose'])
+                    / asset.info['previousClose']) > 0.2:
                     extracted_spot = asset.info['previousClose']
             except KeyError:
                 try:
                     extracted_spot = asset.info['navPrice']
-                except:
+                except KeyError:
                     extracted_spot = asset.info['previousClose']
         params['extracted_spot'] = extracted_spot
-        
+
         opt_list = asset.options
         params['date_list'] = opt_list
         for expiry in opt_list:
@@ -180,7 +229,7 @@ class Data():
                                     tables['full_data'] = pd.concat(
                                         [tables['full_data'], options])
 
-                        except IndexError or KeyError or ValueError:
+                        except (IndexError, KeyError, ValueError):
                             # Add an 'Expiry' column with the expiry date
                             calls['Expiry'] = pd.to_datetime(expiry).date()
 
@@ -188,7 +237,7 @@ class Data():
                             tables['full_data'] = pd.concat(
                                 [tables['full_data'], calls])
 
-            except IndexError or KeyError or ValueError:
+            except (IndexError, KeyError, ValueError):
                 try:
                     # The second entry is 'puts'
                     puts = chain.puts
@@ -206,7 +255,7 @@ class Data():
                             tables['full_data'] = pd.concat(
                                 [tables['full_data'], puts])
 
-                except IndexError or KeyError or ValueError:
+                except (IndexError, KeyError, ValueError):
                     params['opt_except_list'].append(expiry)
 
         tables['full_data'] = tables['full_data'].rename(columns={
@@ -311,7 +360,7 @@ class Data():
             option_date.rstrip()
             try:
                 dates_list.append(parser.parse(option_date).date())
-            except:
+            except (IndexError, KeyError, ValueError):
                 pass
 
         # Convert back to strings in the required format

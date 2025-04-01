@@ -49,6 +49,22 @@ vol_params_dict = {
     'image_dpi':50,
     'skew_months':12,
     'skew_direction':'downside',
+    # Add SVI specific parameters
+    'svi_compute_initial': True, # Whether to compute initial params or use the provided ones
+    'svi_a_init': 0.04, # Initial value for SVI parameter a (overall level)
+    'svi_b_init': 0.04, # Initial value for SVI parameter b (angle between asymptotes)
+    'svi_rho_init': 0.0, # Initial value for SVI parameter rho (controls skew)
+    'svi_m_init': 0.0, # Initial value for SVI parameter m (horizontal translation)
+    'svi_sigma_init': 0.1, # Initial value for SVI parameter sigma (smoothness)
+    'svi_max_iter': 1000, # Maximum iterations for SVI optimization
+    'svi_tol': 1e-6, # Tolerance for SVI optimization convergence
+    'svi_bounds': [
+            (None, None),      # a: no bounds
+            (0.0001, None),    # b: positive
+            (-0.9999, 0.9999), # rho: between -1 and 1
+            (None, None),      # m: no bounds
+            (0.0001, None)     # sigma: positive
+        ],
 
     # Dictionary of implied vol fields used in graph methods
     'vols_dict':{

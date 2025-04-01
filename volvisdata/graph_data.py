@@ -3,12 +3,12 @@ Methods for graphing volatility data
 
 """
 import copy
-import os
 import warnings
 import numpy as np
 import scipy as sp
 from scipy.interpolate import griddata
 from volvisdata.vol_methods import VolMethods
+from volvisdata.svi_model import SVIModel
 # pylint: disable=invalid-name, consider-using-f-string
 
 class GraphData():
@@ -52,7 +52,7 @@ class GraphData():
         opt_dict['tenors'] = []
         # For each expiry date
         for exp_date, tenor in tenor_date_dict.items():
-            # Create a dictionary of strikes, vols & label 
+            # Create a dictionary of strikes, vols & label
             data = {}
             data['strikes'] = np.array(tables['imp_vol_data'][
                 tables['imp_vol_data']['TTM']==tenor]['Strike'])
@@ -65,11 +65,11 @@ class GraphData():
             opt_dict['tenors'].append(data)
 
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
+            params=params,
+            opt_dict=opt_dict,
             output='line'
             )
-        
+
         data_dict = {
             'params': params,
             'tables': tables,
@@ -77,7 +77,7 @@ class GraphData():
         }
 
         return data_dict
-        
+
 
     @classmethod
     def scatter_3d(
@@ -85,7 +85,8 @@ class GraphData():
         params: dict,
         tables: dict) -> dict:
         """
-        Returns data for plotting a 3D scatter plot of each option implied vol against strike and maturity
+        Returns data for plotting a 3D scatter plot of each option implied
+        vol against strike and maturity
 
         Parameters
         ----------
@@ -108,8 +109,8 @@ class GraphData():
 
         # Create figure and axis objects and format
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
+            params=params,
+            opt_dict=opt_dict,
             output='mpl'
             )
 
@@ -141,13 +142,14 @@ class GraphData():
         params: dict,
         tables: dict) -> dict:
         """
-        Returns data for plotting a 3D surface plot of the implied vol surface against strike and maturity
+        Returns data for plotting a 3D surface plot of the implied vol
+        surface against strike and maturity
 
         Parameters
         ----------
         surfacetype : Str
             The type of 3D surface to display from 'trisurf', 'mesh',
-            'spline', 'interactive_mesh' and 'interactive_spline'.
+            'spline', 'interactive_mesh', 'interactive_spline' and 'interactive_svi'.
             The default is 'mesh'.
         smoothing : Bool
             Whether to apply polynomial smoothing. The default is False.
@@ -237,7 +239,7 @@ class GraphData():
         params['x'] = tables['data_3D']['Strike']
         params['y'] = tables['data_3D']['TTM'] * 365
         params['z'] = tables['data_3D']['Graph Vol'] * 100
- 
+
         if params['surfacetype'] == 'trisurf':
             opt_dict = cls._trisurf_graph(params=params, opt_dict=opt_dict)
 
@@ -245,16 +247,20 @@ class GraphData():
             opt_dict = cls._mesh_graph(params=params, opt_dict=opt_dict)
 
         elif params['surfacetype'] == 'spline':
-            opt_dict = cls._spline_graph(params=params, tables=tables, opt_dict=opt_dict)
+            opt_dict = cls._spline_graph(params=params, opt_dict=opt_dict)
+
+        elif params['surfacetype'] == 'svi':
+            opt_dict = cls._svi_graph(params=params, tables=tables, opt_dict=opt_dict)
 
         elif params['surfacetype'] in [
-            'interactive_mesh', 
-            'interactive_spline']:
+            'interactive_mesh',
+            'interactive_spline',
+            'interactive_svi']:
             opt_dict = cls._interactive_graph(params=params, tables=tables, opt_dict=opt_dict)
 
         else:
             print("Enter a valid surfacetype from 'trisurf', 'mesh', "\
-                "'spline', 'interactive_mesh', 'interactive_spline'")
+                "'spline', 'svi', 'interactive_mesh', 'interactive_spline', 'interactive_svi'")
 
         # Set warnings back to default
         warnings.filterwarnings("default", category=UserWarning)
@@ -267,31 +273,31 @@ class GraphData():
 
         return data_dict
 
-        
+
     @classmethod
     def _trisurf_graph(
-        cls,               
-        params: dict, 
+        cls,
+        params: dict,
         opt_dict: dict) -> dict:
 
         # Create figure and axis objects and format
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
+            params=params,
+            opt_dict=opt_dict,
             output='mpl'
             )
-        
+
         opt_dict['strikes'] = np.array(params['x'])
         opt_dict['ttms'] = np.array(params['y'])
         opt_dict['vols'] = np.array(params['z'])
 
         return opt_dict
-    
+
 
     @classmethod
     def _mesh_graph(
-        cls, 
-        params: dict, 
+        cls,
+        params: dict,
         opt_dict: dict) -> dict:
 
         # Create arrays across x and y-axes of equally spaced points
@@ -313,15 +319,15 @@ class GraphData():
 
         # Create figure and axis objects and format
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
+            params=params,
+            opt_dict=opt_dict,
             output='mpl'
             )
 
         opt_dict['strikes_array'] = x1
         opt_dict['ttms_array'] = y1
         opt_dict['vol_surface'] = z1
-        
+
         return opt_dict
 
 
@@ -329,7 +335,6 @@ class GraphData():
     def _spline_graph(
         cls,
         params: dict,
-        tables: dict,
         opt_dict: dict) -> dict:
 
         # Create arrays across x and y-axes of equally spaced points
@@ -360,10 +365,10 @@ class GraphData():
 
         # Create figure and axis objects and format
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
+            params=params,
+            opt_dict=opt_dict,
             output='mpl'
-            )    
+            )
 
         opt_dict['strikes'] = np.array(params['x'])
         opt_dict['ttms'] = np.array(params['y'])
@@ -373,7 +378,66 @@ class GraphData():
         opt_dict['strikes_linspace_array'] = x2
         opt_dict['ttms_linspace_array'] = y2
         opt_dict['vol_surface'] = z2
-        
+
+        return opt_dict
+
+
+    @classmethod
+    def _svi_graph(
+        cls,
+        params: dict,
+        tables: dict,
+        opt_dict: dict) -> dict:
+        """
+        Returns data for plotting a 3D surface using SVI (Stochastic Volatility Inspired) model
+
+        Parameters
+        ----------
+        params : dict
+            Dictionary of parameters
+        tables : dict
+            Dictionary of data tables
+        opt_dict : dict
+            Dictionary for storing output data
+
+        Returns
+        -------
+        dict
+            Updated opt_dict with SVI surface data
+        """
+        # Fit SVI model to volatility data
+        svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
+
+        # Create arrays across x and y-axes of equally spaced points
+        # from min to max values
+        x1 = np.linspace(min(params['x']),
+                        max(params['x']),
+                        int(params['spacegrain']))
+        y1 = np.linspace(min(params['y']),
+                        max(params['y']),
+                        int(params['spacegrain']))
+        x2, y2 = np.meshgrid(x1, y1, indexing='xy')
+
+        # Compute SVI surface
+        z2 = SVIModel.compute_svi_surface(y2, x2, svi_params)
+
+        # Create figure and axis objects and format
+        opt_dict = cls._create_opt_labels(
+            params=params,
+            opt_dict=opt_dict,
+            output='mpl'
+        )
+
+        opt_dict['strikes'] = np.array(params['x'])
+        opt_dict['ttms'] = np.array(params['y'])
+        opt_dict['vols'] = np.array(params['z'])
+        opt_dict['strikes_linspace'] = x1
+        opt_dict['ttms_linspace'] = y1
+        opt_dict['strikes_linspace_array'] = x2
+        opt_dict['ttms_linspace_array'] = y2
+        opt_dict['vol_surface'] = z2
+        # opt_dict['svi_params'] = svi_params
+
         return opt_dict
 
 
@@ -383,7 +447,24 @@ class GraphData():
         params: dict,
         tables: dict,
         opt_dict: dict) -> dict:
+        """
+        Creates data for interactive Plotly visualizations with support for
+        mesh, spline and SVI models
 
+        Parameters
+        ----------
+        params : dict
+            Dictionary of parameters
+        tables : dict
+            Dictionary of data tables
+        opt_dict : dict
+            Dictionary for storing output data
+
+        Returns
+        -------
+        dict
+            Updated opt_dict with interactive surface data
+        """
         params = cls._set_contours(params=params, tables=tables)
 
         # Specify the 3 axis values
@@ -417,7 +498,7 @@ class GraphData():
         # If surfacetype is 'interactive_spline', apply scipy
         # interpolate radial basis function, choosing the rbffunc
         # parameter
-        if params['surfacetype'] == 'interactive_spline':
+        elif params['surfacetype'] == 'interactive_spline':
             params['z2'] = np.zeros((params['x'].size, params['z'].size))
             spline = sp.interpolate.Rbf(
                 params['x'],
@@ -428,10 +509,28 @@ class GraphData():
                 epsilon=5)
             params['z2'] = spline(params['x2'], params['y2'])
 
+        # If surfacetype is 'interactive_svi', use SVI model for surface
+        elif params['surfacetype'] == 'interactive_svi':
+            # Step 1: Fit SVI model to data
+            svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
+
+            # Step 2: Prepare time to maturity grid in years (Plotly uses days)
+            ttm_grid_years = params['x2'] / 365  # Convert days to years
+
+            # Step 3: Calculate the surface using the SVIModel's dedicated method
+            vol_surface_decimal = SVIModel.compute_svi_surface_vectorized(
+                params['y2'],  # Strike grid
+                ttm_grid_years,  # TTM grid in years
+                svi_params  # SVI parameters by maturity
+            )
+
+            # Step 4: Convert volatility from decimal to percentage for display
+            params['z2'] = vol_surface_decimal * 100
+
         opt_dict = cls._create_opt_labels(
-            params=params, 
-            opt_dict=opt_dict, 
-            output='plotly')  
+            params=params,
+            opt_dict=opt_dict,
+            output='plotly')
 
         opt_dict['strikes'] = np.array(tables['data_3D']['Strike'])
         opt_dict['ttms'] = np.array(tables['data_3D']['TTM'] * 365)
@@ -441,6 +540,10 @@ class GraphData():
         opt_dict['ttms_linspace_array'] = params['x2']
         opt_dict['strikes_linspace_array'] = params['y2']
         opt_dict['vol_surface'] = params['z2']
+
+        # If using SVI, store the parameters for reference
+        # if params['surfacetype'] == 'interactive_svi':
+        #     opt_dict['svi_params'] = svi_params
 
         return opt_dict
 
@@ -483,23 +586,23 @@ class GraphData():
 
     @staticmethod
     def _create_opt_labels(
-        params: dict, 
+        params: dict,
         opt_dict: dict,
         output: str) -> dict:
 
         if output == 'mpl':
-            # Add labels to option dictionary  
+            # Add labels to option dictionary
             opt_dict['x_label'] = 'Strike'
             opt_dict['y_label'] = 'Time to Expiration (Days)'
             opt_dict['z_label'] = 'Implied Volatility %'
-            
+
 
         elif output == 'line':
             opt_dict['x_label'] = 'Strike'
             opt_dict['y_label'] = 'Implied Volatility %'
             opt_dict['legend_title'] = 'Option Expiry'
 
-        else: 
+        else:
             opt_dict['x_label'] = 'Time to Expiration (Days)'
             opt_dict['y_label'] = 'Strike'
             opt_dict['z_label'] = 'Implied Volatility %'
@@ -510,6 +613,6 @@ class GraphData():
             +str(params['voltype'].title())
             +' Price '
             +str(params['start_date'])
-            )    
+            )
 
         return opt_dict
