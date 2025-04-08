@@ -769,11 +769,11 @@ class DataPrep():
             # to the 30 day point to allow interpolation of those dates
             tenors = []
             tenors.append(1)
-            for bucket in current_rate.index:
+            for bucket in current_rate.index: #type: ignore
                 tenors.append(ir_tenor_dict[bucket])
 
             rates = []
-            for rate in current_rate:
+            for rate in current_rate: #type: ignore
                 if not rates:
                     rates.append(rate)
                     rates.append(rate)
