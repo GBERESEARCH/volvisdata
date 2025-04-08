@@ -105,6 +105,10 @@ class Volatility():
         # Check if pre-computed data was provided
         if 'precomputed_data' in params:
             # params, tables = Data.process_df_option_data(params=params, tables=tables)
+            if params['discount_type'] == 'smooth':
+                params['precomputed_data']['Discount Rate'] = params['precomputed_data']['Smooth Discount Rate']
+            else:
+                params['precomputed_data']['Discount Rate'] = params['precomputed_data']['Direct Discount Rate']
             params, tables = Data.process_df_option_data(params=params, tables=tables)
         else:
             #Standard path for Yahoo data

@@ -33,7 +33,7 @@ vol_params_dict = {
     'elev':20,
     'fig_size':(15, 12),
     'rbffunc':'thin_plate',
-    'colorscale':'BlueRed',
+    'colorscale':'Jet',
     'monthlies':True,
     'divisor':None,
     'divisor_SPX':25,
@@ -41,7 +41,7 @@ vol_params_dict = {
     'strike_limits':(0.5, 2.0),
     'put_strikes':None,
     'call_strikes':None,
-    'opacity':1,
+    'opacity':0.8,
     'surf':True,
     'save_image':False,
     'image_folder':'images',
@@ -49,6 +49,7 @@ vol_params_dict = {
     'image_dpi':50,
     'skew_months':12,
     'skew_direction':'downside',
+    'discount_type': 'smooth',
     # Add SVI specific parameters
     'svi_compute_initial': True, # Whether to compute initial params or use the provided ones
     'svi_a_init': 0.04, # Initial value for SVI parameter a (overall level)
@@ -59,12 +60,24 @@ vol_params_dict = {
     'svi_max_iter': 1000, # Maximum iterations for SVI optimization
     'svi_tol': 1e-6, # Tolerance for SVI optimization convergence
     'svi_bounds': [
-            (None, None),      # a: no bounds
-            (0.0001, None),    # b: positive
-            (-0.9999, 0.9999), # rho: between -1 and 1
-            (None, None),      # m: no bounds
-            (0.0001, None)     # sigma: positive
-        ],
+        (0.0, None),       # a: non-negative
+        (0.0001, 0.5),     # b: positive but bounded
+        (-0.9, 0.9),       # rho: slightly tighter than (-0.9999, 0.9999)
+        (-0.5, 0.5),       # m: adding reasonable bounds
+        (0.0001, 0.5)      # sigma: positive but bounded
+    ],
+    # 'svi_bounds': [
+    #         (None, None),      # a: no bounds
+    #         (0.0001, None),    # b: positive
+    #         (-0.9999, 0.9999), # rho: between -1 and 1
+    #         (None, None),      # m: no bounds
+    #         (0.0001, None)     # sigma: positive
+    #     ],
+
+    'svi_reg_weight': 0.01,  # Regularization weight for SVI calibration
+    'svi_interpolation_method': 'pchip',  # Options: 'linear', 'quadratic', 'cubic', 'pchip'
+    'svi_term_reg_weight': 0.5,  # Weight for term structure regularization
+    'svi_joint_calibration': True,  # Whether to use joint calibration
 
     # Dictionary of implied vol fields used in graph methods
     'vols_dict':{
