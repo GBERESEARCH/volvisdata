@@ -3,7 +3,7 @@ Market data import and transformation functions
 
 """
 import copy
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from io import StringIO
 import time
 import warnings
@@ -11,7 +11,13 @@ import warnings
 from bs4 import BeautifulSoup
 from dateutil import parser
 import pandas as pd
-from pandas.tseries.holiday import get_calendar, HolidayCalendarFactory, GoodFriday
+# from pandas.tseries.holiday import get_calendar, HolidayCalendarFactory, GoodFriday, AbstractHolidayCalendar
+from pandas.tseries.holiday import (
+    USFederalHolidayCalendar, 
+    HolidayCalendarFactory, 
+    GoodFriday,
+    AbstractHolidayCalendar
+)
 import yfinance as yf
 from volvisdata.market_data_prep import DataPrep, UrlOpener
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -528,25 +534,56 @@ class Data():
 
         """
         # Create calendar instance
-        cal = get_calendar('USFederalHolidayCalendar')
-        cal_mod = copy.deepcopy(cal)
+        # cal = get_calendar('USFederalHolidayCalendar')
+        # cal_mod = copy.deepcopy(cal)
 
-        start = date.today()
-        end = start + timedelta(days=2500)
+        # start = date.today()
+        # end = start + timedelta(days=2500)
 
-        # Remove Columbus Day rule and Veteran's Day rule
-        cal_mod.rules = cal_mod.rules[0:6] + cal_mod.rules[8:]
+        # # Remove Columbus Day rule and Veteran's Day rule
+        # cal_mod.rules = cal_mod.rules[0:6] + cal_mod.rules[8:]
 
-        # Create new calendar generator
-        tradingCal = HolidayCalendarFactory(
-            'TradingCalendar', cal_mod, GoodFriday)
+        # # Create new calendar generator
+        # tradingCal = HolidayCalendarFactory(
+        #     'TradingCalendar', cal_mod, GoodFriday)
 
-        tcal = tradingCal()
+        # tcal = tradingCal()
 
-        holiday_array = tcal.holidays(start=start, end=end).to_pydatetime()
+        # holiday_array = tcal.holidays(start=start, end=end).to_pydatetime()
 
-        params['trade_holidays'] = []
-        for hol in holiday_array:
-            params['trade_holidays'].append(hol.date())
+        # params['trade_holidays'] = []
+        # for hol in holiday_array:
+        #     params['trade_holidays'].append(hol.date())
 
+        # return params
+
+         # Create a modified calendar class that excludes Columbus Day and Veteran's Day
+        class CustomTradingCalendar(USFederalHolidayCalendar):
+            rules = [rule for i, rule in enumerate(USFederalHolidayCalendar.rules) if i != 6 and i != 7]  # Skip indices 6 and 7
+        
+        # Create a calendar class for GoodFriday
+        class GoodFridayCalendar(AbstractHolidayCalendar):
+            rules = [GoodFriday]
+        
+        # Create the combined calendar class
+        TradingCalendar = HolidayCalendarFactory(
+            'TradingCalendar', 
+            CustomTradingCalendar,  
+            GoodFridayCalendar    
+        )
+        
+        # Instantiate the calendar
+        tcal = TradingCalendar()
+        
+        # Convert date objects to datetime for the holidays method
+        start_dt = datetime.combine(date.today(), datetime.min.time())
+        end_dt = datetime.combine(date.today() + timedelta(days=2500), datetime.min.time())
+        
+        # Get holidays
+        holiday_array = tcal.holidays(start=start_dt, end=end_dt).to_pydatetime()
+        
+        # Store holiday dates in params
+        params['trade_holidays'] = [hol.date() for hol in holiday_array]
+        
         return params
+    
