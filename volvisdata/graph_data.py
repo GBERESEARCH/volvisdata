@@ -59,7 +59,7 @@ class GraphData():
             data['vols'] = np.array(tables['imp_vol_data'][
                 tables['imp_vol_data']['TTM']==tenor][str(
                     params['vols_dict'][str(params['voltype'])])] * 100)
-            data['label'] = str(exp_date)+' Expiry'
+            data['label'] = str(exp_date.date())
 
             # Append this to the array of tenors
             opt_dict['tenors'].append(data)
@@ -418,8 +418,18 @@ class GraphData():
                         int(params['spacegrain']))
         x2, y2 = np.meshgrid(x1, y1, indexing='xy')
 
+        # Convert TTM from days to years
+        ttm_grid_years = y2 / 365
+
         # Compute SVI surface
-        z2 = SVIModel.compute_svi_surface(y2, x2, svi_params)
+        vol_surface_decimal = SVIModel.compute_svi_surface(
+            strikes_grid=x2, 
+            ttms_grid=ttm_grid_years, 
+            svi_params=svi_params, 
+            params=params
+            )
+        
+        z2 = vol_surface_decimal * 100
 
         # Create figure and axis objects and format
         opt_dict = cls._create_opt_labels(
@@ -518,10 +528,11 @@ class GraphData():
             ttm_grid_years = params['x2'] / 365  # Convert days to years
 
             # Step 3: Calculate the surface using the SVIModel's dedicated method
-            vol_surface_decimal = SVIModel.compute_svi_surface_vectorized(
-                params['y2'],  # Strike grid
-                ttm_grid_years,  # TTM grid in years
-                svi_params  # SVI parameters by maturity
+            vol_surface_decimal = SVIModel.compute_svi_surface(
+                strikes_grid=params['y2'],  # Strike grid
+                ttms_grid=ttm_grid_years,  # TTM grid in years
+                svi_params=svi_params,  # SVI parameters by maturity
+                params=params
             )
 
             # Step 4: Convert volatility from decimal to percentage for display
