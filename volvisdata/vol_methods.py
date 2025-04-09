@@ -10,6 +10,7 @@ import pandas as pd
 import scipy as sp
 import scipy.interpolate as inter
 import scipy.stats as si
+from volvisdata.svi_model import SVIModel
 # pylint: disable=invalid-name, consider-using-f-string
 
 class ImpliedVol():
@@ -605,7 +606,7 @@ class VolMethods():
     def map_vols(
         cls,
         params: dict,
-        tables: dict) -> tuple[inter._rbf.Rbf, inter._rbf.Rbf]:
+        tables: dict) -> tuple:
         """
         Create vol surface mapping function
 
@@ -644,8 +645,14 @@ class VolMethods():
             function=params['rbffunc'],
             smooth=5,
             epsilon=5)
+       
+        # Calibrate SVI model and store parameters
+        svi_params = SVIModel.fit_svi_surface(tables['imp_vol_data'], params)
 
-        return vol_surface, vol_surface_smoothed
+        # Create callable SVI surface with identical interface to RBF surfaces
+        vol_surface_svi = SVIVolSurface(svi_params, params)
+
+        return vol_surface, vol_surface_smoothed, vol_surface_svi
 
 
     @staticmethod
@@ -675,9 +682,66 @@ class VolMethods():
         start_date = dt.datetime.strptime(params['start_date'], '%Y-%m-%d')
         ttm = (maturity_date - start_date).days
         if params['smoothing']:
-            imp_vol = surface_models[
-                'vol_surface_smoothed'](strike_level, ttm)
+            if params['smooth_type_svi']:
+                surface = surface_models['vol_surface_svi']
+            else:    
+                surface = surface_models['vol_surface_smoothed']
         else:
-            imp_vol = surface_models['vol_surface'](strike_level, ttm)
+            surface = surface_models['vol_surface']
+
+        # Uniform interface for all surface types
+        imp_vol = surface(strike_level, ttm)    
 
         return np.round(imp_vol, 2)
+
+
+class SVIVolSurface:
+    """Callable wrapper for SVI parameters to match Rbf interface"""
+    
+    def __init__(self, svi_params, params):
+        self.svi_params = svi_params
+        self.params = params        
+        self.svi_model = SVIModel
+    
+    def __call__(self, strike, ttm_days):
+        """
+        Callable interface matching Rbf objects
+        
+        Parameters:
+        -----------
+        strike : float or array
+            Option strike price
+        ttm_days : float or array
+            Time to maturity in days
+            
+        Returns:
+        --------
+        float or array
+            Implied volatility in percentage points
+        """
+        # Convert to numpy arrays if not already
+        strike_arr = np.atleast_1d(strike)
+        ttm_arr = np.atleast_1d(ttm_days)
+        
+        # Create 2D mesh if inputs were scalars
+        if len(strike_arr) == 1 and len(ttm_arr) == 1:
+            strike_grid = np.array([[strike_arr[0]]])
+            ttm_grid = np.array([[ttm_arr[0]/365.0]])  # Convert to years
+        else:
+            # Handle higher-dimensional inputs if needed
+            strike_grid, ttm_grid = np.meshgrid(strike_arr, ttm_arr/365.0)
+            
+        # Compute volatilities using SVI model
+        vol_surface = self.svi_model.compute_svi_surface(
+            strikes_grid=strike_grid,
+            ttms_grid=ttm_grid,
+            svi_params=self.svi_params,
+            params=self.params
+        )
+        
+        # Extract volatility (already in percentage)
+        result = vol_surface.flatten() * 100.0
+        
+        # Return scalar or array matching input dimensions
+        return result[0] if len(result) == 1 else result
+    

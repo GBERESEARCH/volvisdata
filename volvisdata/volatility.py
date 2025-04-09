@@ -116,8 +116,7 @@ class Volatility():
 
         # Map volatilities
         surface_models = {}
-        surface_models['vol_surface'], \
-            surface_models['vol_surface_smoothed'] = VolMethods.map_vols(
+        surface_models['vol_surface'], surface_models['vol_surface_smoothed'], surface_models['vol_surface_svi'] = VolMethods.map_vols(
                 params=params, tables=tables)
 
         self.data_dict = {}
@@ -517,7 +516,8 @@ class Volatility():
         self,
         maturity: str,
         strike: int,
-        smoothing: bool | None = None):
+        smoothing: bool | None = None,
+        smooth_type_svi: bool | None = None):
         """
         Return implied vol for a given maturity and strike
 
@@ -537,6 +537,9 @@ class Volatility():
         if smoothing is not None:
             self.params['smoothing'] = smoothing
 
+        if smooth_type_svi is not None:
+            self.params['smooth_type_svi'] = smooth_type_svi    
+
         return VolMethods.get_vol(
             maturity=maturity, strike=strike, params=self.params,
             surface_models=self.surface_models)
@@ -545,7 +548,9 @@ class Volatility():
     def skewreport(
         self,
         months: int | None = None,
-        direction: str | None = None):
+        direction: str | None = None,
+        smoothing: bool | None = True,
+        smooth_type_svi: bool | None = True):
         """
         Print a report showing implied vols for 80%, 90% and ATM strikes and
         selected tenor length
@@ -567,6 +572,12 @@ class Volatility():
 
         if direction is not None:
             self.params['skew_direction'] = direction
+        
+        if smoothing is not None:
+            self.params['smoothing'] = smoothing
+        
+        if smooth_type_svi is not None:
+            self.params['smooth_type_svi'] = smooth_type_svi
 
         vol_dict = SkewReport.create_vol_dict(
             params=self.params, surface_models=self.surface_models)

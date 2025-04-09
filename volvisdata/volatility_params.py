@@ -17,6 +17,7 @@ vol_params_dict = {
     'graphtype':'line',
     'surfacetype':'mesh',
     'smoothing':False,
+    'smooth_type_svi':True,
     'scatter':True,
     'voltype':'last',
     'smoothopt':6,
