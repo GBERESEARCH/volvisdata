@@ -59,7 +59,10 @@ class GraphData():
             data['vols'] = np.array(tables['imp_vol_data'][
                 tables['imp_vol_data']['TTM']==tenor][str(
                     params['vols_dict'][str(params['voltype'])])] * 100)
-            data['label'] = str(exp_date.date())
+            try:
+                data['label'] = str(exp_date.date())
+            except AttributeError:
+                data['label'] = str(exp_date)
 
             # Append this to the array of tenors
             opt_dict['tenors'].append(data)
