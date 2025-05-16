@@ -648,7 +648,8 @@ class DataPrep():
                 'r': (row['Discount Rate'] if 'precomputed_data' in params
                       else cls.interest_rate(
                           row['Days'], params['yield_curve'])),
-                'q':params['q'],
+                'q': (0 if 'precomputed_data' in params 
+                      else params['q']),
                 'cm':row[input_row],
                 'epsilon':params['epsilon'],
                 'option':option
