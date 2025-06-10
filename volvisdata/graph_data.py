@@ -628,5 +628,11 @@ class GraphData():
             +' Price '
             +str(params['start_date'])
             )
+        
+        opt_dict['title_short'] = (
+            str(params['ticker_label'])
+            +' '
+            +str(params['start_date'])
+            )
 
         return opt_dict
