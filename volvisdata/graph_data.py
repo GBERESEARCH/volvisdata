@@ -9,6 +9,8 @@ import scipy as sp
 from scipy.interpolate import griddata
 from volvisdata.vol_methods import VolMethods
 from volvisdata.svi_model import SVIModel
+from volvisdata.hybrid_spline_model import HybridSplineModel
+
 # pylint: disable=invalid-name, consider-using-f-string
 
 class GraphData():
@@ -143,7 +145,8 @@ class GraphData():
     def surface_3d(
         cls,
         params: dict,
-        tables: dict) -> dict:
+        tables: dict,
+        surface_models: dict) -> dict:
         """
         Returns data for plotting a 3D surface plot of the implied vol
         surface against strike and maturity
@@ -253,17 +256,37 @@ class GraphData():
             opt_dict = cls._spline_graph(params=params, opt_dict=opt_dict)
 
         elif params['surfacetype'] == 'svi':
-            opt_dict = cls._svi_graph(params=params, tables=tables, opt_dict=opt_dict)
+            opt_dict = cls._svi_graph(
+                params=params, 
+                tables=tables, 
+                surface_models=surface_models,    
+                opt_dict=opt_dict
+                )
+           
+        elif params['surfacetype'] == 'hybrid_spline':
+            opt_dict = cls._hybrid_spline_graph(
+                params=params,
+                tables=tables,
+                surface_models=surface_models,
+                opt_dict=opt_dict
+            )    
 
         elif params['surfacetype'] in [
             'interactive_mesh',
             'interactive_spline',
-            'interactive_svi']:
-            opt_dict = cls._interactive_graph(params=params, tables=tables, opt_dict=opt_dict)
+            'interactive_svi',
+            'interactive_hybrid_spline']:
+            opt_dict = cls._interactive_graph(
+                params=params, 
+                tables=tables, 
+                surface_models=surface_models,
+                opt_dict=opt_dict
+                )
 
         else:
             print("Enter a valid surfacetype from 'trisurf', 'mesh', "\
-                "'spline', 'svi', 'interactive_mesh', 'interactive_spline', 'interactive_svi'")
+                "'spline', 'svi', 'hybrid_spline', 'interactive_mesh', "\
+                "'interactive_spline', 'interactive_svi', 'interactive_hybrid_spline'")
 
         # Set warnings back to default
         warnings.filterwarnings("default", category=UserWarning)
@@ -390,7 +413,9 @@ class GraphData():
         cls,
         params: dict,
         tables: dict,
-        opt_dict: dict) -> dict:
+        opt_dict: dict,
+        surface_models: dict 
+        ) -> dict:
         """
         Returns data for plotting a 3D surface using SVI (Stochastic Volatility Inspired) model
 
@@ -409,7 +434,10 @@ class GraphData():
             Updated opt_dict with SVI surface data
         """
         # Fit SVI model to volatility data
-        svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
+        if surface_models and 'vol_surface_svi' in surface_models:
+            svi_params = surface_models['vol_surface_svi'].svi_params
+        else:
+            svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
 
         # Create arrays across x and y-axes of equally spaced points
         # from min to max values
@@ -452,6 +480,82 @@ class GraphData():
         # opt_dict['svi_params'] = svi_params
 
         return opt_dict
+    
+
+    @classmethod
+    def _hybrid_spline_graph(
+        cls,
+        params: dict,
+        tables: dict,
+        opt_dict: dict,
+        surface_models: dict
+    ) -> dict:
+        """
+        Returns data for plotting a 3D surface using Hybrid Spline model.
+        
+        Parameters
+        ----------
+        params : dict
+            Dictionary of parameters
+        tables : dict
+            Dictionary of data tables
+        opt_dict : dict
+            Dictionary for storing output data
+        surface_models : dict
+            Dictionary containing fitted surface models
+            
+        Returns
+        -------
+        dict
+            Updated opt_dict with hybrid spline surface data
+        """
+        if surface_models and 'vol_surface_hybrid_spline' in surface_models:
+            spline_params = surface_models['vol_surface_hybrid_spline'].spline_params
+        else:
+            spline_params = HybridSplineModel.fit_hybrid_spline_surface(
+                tables['data_3D'], 
+                params
+            )
+        
+        x1 = np.linspace(
+            min(params['x']), 
+            max(params['x']), 
+            int(params['spacegrain'])
+        )
+        y1 = np.linspace(
+            min(params['y']), 
+            max(params['y']), 
+            int(params['spacegrain'])
+        )
+        x2, y2 = np.meshgrid(x1, y1, indexing='xy')
+        
+        ttm_grid_years = y2 / 365
+        
+        vol_surface_decimal = HybridSplineModel.compute_hybrid_spline_surface(
+            strikes_grid=x2,
+            ttms_grid=ttm_grid_years,
+            spline_params=spline_params,
+            params=params
+        )
+        
+        z2 = vol_surface_decimal * 100
+        
+        opt_dict = cls._create_opt_labels(
+            params=params,
+            opt_dict=opt_dict,
+            output='mpl'
+        )
+        
+        opt_dict['strikes'] = np.array(params['x'])
+        opt_dict['ttms'] = np.array(params['y'])
+        opt_dict['vols'] = np.array(params['z'])
+        opt_dict['strikes_linspace'] = x1
+        opt_dict['ttms_linspace'] = y1
+        opt_dict['strikes_linspace_array'] = x2
+        opt_dict['ttms_linspace_array'] = y2
+        opt_dict['vol_surface'] = z2
+        
+        return opt_dict
 
 
     @classmethod
@@ -459,7 +563,8 @@ class GraphData():
         cls,
         params: dict,
         tables: dict,
-        opt_dict: dict) -> dict:
+        opt_dict: dict,
+        surface_models: dict) -> dict:
         """
         Creates data for interactive Plotly visualizations with support for
         mesh, spline and SVI models
@@ -525,7 +630,10 @@ class GraphData():
         # If surfacetype is 'interactive_svi', use SVI model for surface
         elif params['surfacetype'] == 'interactive_svi':
             # Step 1: Fit SVI model to data
-            svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
+            if surface_models and 'vol_surface_svi' in surface_models:
+                svi_params = surface_models['vol_surface_svi'].svi_params
+            else:
+                svi_params = SVIModel.fit_svi_surface(tables['data_3D'], params)
 
             # Step 2: Prepare time to maturity grid in years (Plotly uses days)
             ttm_grid_years = params['x2'] / 365  # Convert days to years
@@ -540,6 +648,28 @@ class GraphData():
 
             # Step 4: Convert volatility from decimal to percentage for display
             params['z2'] = vol_surface_decimal * 100
+
+        # If surfacetype is 'interactive_hybrid_spline', use HybridSpline model for surface
+        elif params['surfacetype'] == 'interactive_hybrid_spline':
+            # Get Hybrid Spline parameters
+            if surface_models and 'vol_surface_hybrid_spline' in surface_models:
+                spline_params = surface_models['vol_surface_hybrid_spline'].spline_params
+            else:
+                spline_params = HybridSplineModel.fit_hybrid_spline_surface(tables['data_3D'], params)
+            
+            # Prepare time to maturity grid in years
+            ttm_grid_years = params['x2'] / 365
+            
+            # Calculate surface using HybridSpline
+            vol_surface_decimal = HybridSplineModel.compute_hybrid_spline_surface(
+                strikes_grid=params['y2'],
+                ttms_grid=ttm_grid_years,
+                spline_params=spline_params,
+                params=params
+            )
+            
+            # Convert to percentage
+            params['z2'] = vol_surface_decimal * 100    
 
         opt_dict = cls._create_opt_labels(
             params=params,
