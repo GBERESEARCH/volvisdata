@@ -116,8 +116,11 @@ class Volatility():
 
         # Map volatilities
         surface_models = {}
-        surface_models['vol_surface'], surface_models['vol_surface_smoothed'], surface_models['vol_surface_svi'] = VolMethods.map_vols(
-                params=params, tables=tables)
+        (surface_models['vol_surface'], 
+        surface_models['vol_surface_smoothed'], 
+        surface_models['vol_surface_svi']
+        # surface_models['vol_surface_hybrid_spline']
+        ) = VolMethods.map_vols(params=params, tables=tables)
 
         self.data_dict = {}
         self.vol_dict = {}
@@ -206,25 +209,58 @@ class Volatility():
         elif self.params['graphtype'] == 'surface':
             if self.params['surfacetype'] == 'trisurf':
                 self.data_dict['trisurf_data_dict'] = GraphData.surface_3d(
-                    params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
         elif self.params['surfacetype'] == 'mesh':
             self.data_dict['mesh_data_dict'] = GraphData.surface_3d(
-                params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
         elif self.params['surfacetype'] == 'spline':
             self.data_dict['spline_data_dict'] = GraphData.surface_3d(
-                    params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
         elif self.params['surfacetype'] == 'svi':
             self.data_dict['svi_data_dict'] = GraphData.surface_3d(
-                params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
+        # elif self.params['surfacetype'] == 'hybrid_spline':
+        #     self.data_dict['hybrid_spline_data_dict'] = GraphData.surface_3d(
+        #             params=self.params, 
+        #             tables=self.tables, 
+        #             surface_models=self.surface_models
+        #             )
         elif self.params['surfacetype'] == 'interactive_mesh':
             self.data_dict['int_mesh_data_dict'] = GraphData.surface_3d(
-                    params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
         elif self.params['surfacetype'] == 'interactive_spline':
             self.data_dict['int_spline_data_dict'] = GraphData.surface_3d(
-                    params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
         elif self.params['surfacetype'] == 'interactive_svi':
             self.data_dict['int_svi_data_dict'] = GraphData.surface_3d(
-                    params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
+        # elif self.params['surfacetype'] == 'interactive_hybrid_spline':
+        #     self.data_dict['int_hybrid_spline_data_dict'] = GraphData.surface_3d(
+        #             params=self.params, 
+        #             tables=self.tables, 
+        #             surface_models=self.surface_models
+        #             )
         else:
             print ("Please select a graphtype from 'line', "\
                    "'scatter' and 'surface'")
@@ -312,37 +348,74 @@ class Volatility():
         self.params['surfacetype'] = 'trisurf'
         trisurf_data_dict = {}
         trisurf_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         self.params['surfacetype'] = 'mesh'
         mesh_data_dict = {}
         mesh_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         self.params['surfacetype'] = 'spline'
         spline_data_dict = {}
         spline_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         self.params['surfacetype'] = 'svi'
         svi_data_dict = {}
         svi_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
+        
+        # self.params['surfacetype'] = 'hybrid_spline'
+        # hybrid_spline_data_dict = {}
+        # hybrid_spline_data_dict = GraphData.surface_3d(
+        #             params=self.params, 
+        #             tables=self.tables, 
+        #             surface_models=self.surface_models
+        #             )
 
         self.params['surfacetype'] = 'interactive_mesh'
         int_mesh_data_dict = {}
         int_mesh_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         self.params['surfacetype'] = 'interactive_spline'
         int_spline_data_dict ={}
         int_spline_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         self.params['surfacetype'] = 'interactive_svi'
         int_svi_data_dict ={}
         int_svi_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
+        
+        # self.params['surfacetype'] = 'interactive_hybrid_spline'
+        # int_hybrid_spline_data_dict ={}
+        # int_hybrid_spline_data_dict = GraphData.surface_3d(
+        #             params=self.params, 
+        #             tables=self.tables, 
+        #             surface_models=self.surface_models
+        #             )
 
         print("All data returned")
         self.data_dict['line'] = line_data_dict
@@ -351,9 +424,11 @@ class Volatility():
         self.data_dict['mesh'] = mesh_data_dict
         self.data_dict['spline'] = spline_data_dict
         self.data_dict['svi'] = svi_data_dict
+        #self.data_dict['hybrid_spline'] = hybrid_spline_data_dict
         self.data_dict['int_mesh'] = int_mesh_data_dict
         self.data_dict['int_spline'] = int_spline_data_dict
         self.data_dict['int_svi'] = int_svi_data_dict
+        #self.data_dict['int_hybrid_spline'] = int_hybrid_spline_data_dict
 
 
     def linegraph(self, **kwargs):
@@ -506,7 +581,10 @@ class Volatility():
 
         surface_data_dict = {}
         surface_data_dict = GraphData.surface_3d(
-            params=self.params, tables=self.tables)
+                    params=self.params, 
+                    tables=self.tables, 
+                    surface_models=self.surface_models
+                    )
 
         print("Surface data returned")
         self.data_dict['surface_data_dict'] = surface_data_dict
@@ -517,7 +595,7 @@ class Volatility():
         maturity: str,
         strike: int,
         smoothing: bool | None = None,
-        smooth_type_svi: bool | None = None):
+        smooth_type: str | None = None):
         """
         Return implied vol for a given maturity and strike
 
@@ -537,8 +615,8 @@ class Volatility():
         if smoothing is not None:
             self.params['smoothing'] = smoothing
 
-        if smooth_type_svi is not None:
-            self.params['smooth_type_svi'] = smooth_type_svi    
+        if smooth_type is not None:
+            self.params['smooth_type'] = smooth_type    
 
         return VolMethods.get_vol(
             maturity=maturity, strike=strike, params=self.params,
@@ -550,7 +628,7 @@ class Volatility():
         months: int | None = None,
         direction: str | None = None,
         smoothing: bool | None = True,
-        smooth_type_svi: bool | None = True):
+        smooth_type: str | None = 'ssvi'):
         """
         Print a report showing implied vols for 80%, 90% and ATM strikes and
         selected tenor length
@@ -576,8 +654,8 @@ class Volatility():
         if smoothing is not None:
             self.params['smoothing'] = smoothing
         
-        if smooth_type_svi is not None:
-            self.params['smooth_type_svi'] = smooth_type_svi
+        if smooth_type is not None:
+            self.params['smooth_type'] = smooth_type
 
         vol_dict = SkewReport.create_vol_dict(
             params=self.params, surface_models=self.surface_models)
