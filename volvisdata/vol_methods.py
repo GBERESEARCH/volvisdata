@@ -11,6 +11,8 @@ import scipy as sp
 import scipy.interpolate as inter
 import scipy.stats as si
 from volvisdata.svi_model import SVIModel
+from volvisdata.hybrid_spline_model import HybridSplineModel
+
 # pylint: disable=invalid-name, consider-using-f-string
 
 class ImpliedVol():
@@ -652,7 +654,13 @@ class VolMethods():
         # Create callable SVI surface with identical interface to RBF surfaces
         vol_surface_svi = SVIVolSurface(svi_params, params)
 
-        return vol_surface, vol_surface_smoothed, vol_surface_svi
+        # Calibrate Hybrid Spline model and store parameters
+        # hybrid_spline_params = HybridSplineModel.fit_hybrid_spline_surface(tables['imp_vol_data'], params)
+        
+        # Create callable Hybrid Spline surface with identical interface to RBF surfaces
+        # vol_surface_hybrid_spline = HybridSplineVolSurface(hybrid_spline_params, params)
+
+        return vol_surface, vol_surface_smoothed, vol_surface_svi #vol_surface_hybrid_spline        
 
 
     @staticmethod
@@ -682,9 +690,12 @@ class VolMethods():
         start_date = dt.datetime.strptime(params['start_date'], '%Y-%m-%d')
         ttm = (maturity_date - start_date).days
         if params['smoothing']:
-            if params['smooth_type_svi']:
+            smooth_type = params['smooth_type']
+            if smooth_type == 'svi':
                 surface = surface_models['vol_surface_svi']
-            else:    
+            elif smooth_type == 'svijw':
+                surface = surface_models['vol_surface_svijw']
+            else:  # 'rbf'
                 surface = surface_models['vol_surface_smoothed']
         else:
             surface = surface_models['vol_surface']
@@ -744,4 +755,62 @@ class SVIVolSurface:
         
         # Return scalar or array matching input dimensions
         return result[0] if len(result) == 1 else result
+   
+
+class HybridSplineVolSurface:
+    """Callable wrapper for hybrid spline parameters to match Rbf interface"""
+    
+    def __init__(self, spline_params: dict, params: dict):
+        """
+        Initialize hybrid spline surface wrapper.
+        
+        Parameters
+        ----------
+        spline_params : dict
+            Fitted spline parameters from HybridSplineModel.fit_hybrid_spline_surface
+        params : dict
+            General parameters dictionary
+        """
+        self.spline_params = spline_params
+        self.params = params
+        self.model = HybridSplineModel
+    
+    def __call__(self, strike, ttm_days):
+        """
+        Callable interface matching Rbf objects.
+        
+        Parameters
+        ----------
+        strike : float or array
+            Option strike price
+        ttm_days : float or array
+            Time to maturity in days
+            
+        Returns
+        -------
+        float or array
+            Implied volatility in percentage points
+        """
+        strike_arr = np.atleast_1d(strike)
+        ttm_arr = np.atleast_1d(ttm_days)
+        
+        if len(strike_arr) == 1 and len(ttm_arr) == 1:
+            strike_grid = np.array([[strike_arr[0]]])
+            ttm_grid = np.array([[ttm_arr[0] / 365.0]])
+        else:
+            strike_grid, ttm_grid = np.meshgrid(strike_arr, ttm_arr / 365.0)
+        
+        vol_surface = self.model.compute_hybrid_spline_surface(
+            strikes_grid=strike_grid,
+            ttms_grid=ttm_grid,
+            spline_params=self.spline_params,
+            params=self.params
+        )
+        
+        result = vol_surface * 100
+        
+        if len(strike_arr) == 1 and len(ttm_arr) == 1:
+            return float(result[0, 0])
+        
+        return result
     
