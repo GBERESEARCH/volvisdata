@@ -93,7 +93,11 @@ class Utils():
             Dictionary of key parameters.
 
         """
-        params['yield_curve'] = DataPrep.generate_yield_curve(r=r)
+        if params['yield_curve'] is None:
+            params['yield_curve'] = DataPrep.generate_yield_curve(
+                start_date=params['start_date'], 
+                r=r
+                )
 
         return params
 
