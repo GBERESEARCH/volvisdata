@@ -152,7 +152,7 @@ class DataPrep():
         # Create Time To Maturity (in years) column
         tables['data']['TTM'] = (
             pd.to_datetime(tables['data']['Expiry'])
-            - pd.to_datetime(date.today())) / (pd.Timedelta(days=1) * 365)
+            - pd.to_datetime(params['start_date'])) / (pd.Timedelta(days=1) * 365)
 
         # Create Days to Maturity column
         tables['data']['Days'] = np.round(tables['data']['TTM']*365, 0)
@@ -647,7 +647,10 @@ class DataPrep():
                 # 'r':cls.interest_rate(row['Days'], params['yield_curve']),
                 'r': (row['Discount Rate'] if 'precomputed_data' in params
                       else cls.interest_rate(
-                          row['Days'], params['yield_curve'])),
+                          ttm=row['Days'], 
+                          start_date=params['start_date'],
+                          yield_curve=params['yield_curve']
+                          )),
                 'q': (0 if 'precomputed_data' in params 
                       else params['q']),
                 'cm':row[input_row],
@@ -694,6 +697,7 @@ class DataPrep():
     def interest_rate(
         cls,
         ttm: int,
+        start_date: str,
         yield_curve: interpolate.interp1d | None = None) -> float:
         """
         Returns the interest rate for a given number of days to maturity
@@ -713,13 +717,18 @@ class DataPrep():
 
         """
         if yield_curve is None:
-            yield_curve = cls.generate_yield_curve()
+            yield_curve = cls.generate_yield_curve(start_date=start_date)
+            print("Yield Curve Generated")
+        else:
+            print("Using Existing Yield Curve")
 
         return np.round(float(yield_curve(ttm))/100, 5)
 
 
     @staticmethod
-    def generate_yield_curve(r: float | None = None) -> interpolate.interp1d:
+    def generate_yield_curve(
+        start_date: str, 
+        r: float | None = None) -> interpolate.interp1d:
         """
         Returns a yield curve interpolation function
 
@@ -738,13 +747,16 @@ class DataPrep():
 
         if r is None:
 
-            year = dt.date.today().strftime("%Y")
+            #year = dt.date.today().strftime("%Y")
+            year = start_date[:4]
 
             # Extract Daily Treasury Par Yield Curve Rates
             url = 'https://home.treasury.gov/resource-center/data-chart-center'+\
                 '/interest-rates/TextView?type=daily_treasury_yield_curve'+\
                     '&field_tdr_date_value='+year
             data = pd.read_html(url)[0]
+
+            print("Yield Curve Data Extracted")
 
             # Dictionary mapping tenors to days
             ir_tenor_dict = {
