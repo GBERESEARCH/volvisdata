@@ -10,6 +10,7 @@ import pandas as pd
 import scipy as sp
 import scipy.interpolate as inter
 import scipy.stats as si
+from scipy.special import erfcx
 from volvisdata.svi_model import SVIModel
 from volvisdata.hybrid_spline_model import HybridSplineModel
 
@@ -350,6 +351,271 @@ class ImpliedVol():
                 opt_params['vi'] -= (0.0000001 * opt_params['flag'])
 
         result = opt_params['vi']
+
+        return result
+    
+
+    @classmethod
+    def implied_vol_jaeckel(cls, opt_params: dict) -> float | str:
+        """
+        Finds implied volatility using Jäckel's Let's Be Rational method.
+
+        Uses a four-regime rational initial guess, the normalised Black
+        formula via erfcx to avoid underflow at extreme strikes, and
+        Halley's third-order iteration to achieve machine-precision
+        convergence, typically in two iterations.
+
+        Parameters
+        ----------
+        S : Float
+            Stock Price. The default is 100.
+        K : Float
+            Strike Price. The default is 100.
+        T : Float
+            Time to Maturity. The default is 0.25 (3 Months).
+        r : Float
+            Interest Rate. The default is 0.005 (50bps).
+        q : Float
+            Dividend Yield. The default is 0.
+        cm : Float
+            Option price used to solve for vol. The default is 5.
+        option : Str
+            Type of option. 'put' or 'call'. The default is 'call'.
+
+        Returns
+        -------
+        result : Float
+            Implied Volatility.
+
+        References
+        ----------
+        Jäckel, P. (2015). Let's be rational. Wilmott, 75, 40-53.
+        Jäckel, P. (2024). Reference implementation.
+            http://www.jaeckel.org/LetsBeRational.7z. Revision 1520.
+        """
+        
+        opt_params['sqrt2'] = np.sqrt(2.0)
+        opt_params['sqrt2pi'] = np.sqrt(2.0 * np.pi)
+
+        # Forward price and discount factor
+        opt_params['b'] = opt_params['r'] - opt_params['q']
+        opt_params['F_jk'] = (
+            opt_params['S'] * np.exp(opt_params['b'] * opt_params['T']))
+        opt_params['D_jk'] = np.exp(-opt_params['r'] * opt_params['T'])
+
+        # Convert put to call via put-call parity
+        if opt_params['option'] == 'put':
+            opt_params['cm_call_jk'] = (
+                opt_params['cm']
+                + opt_params['D_jk'] * (opt_params['F_jk'] - opt_params['K']))
+        else:
+            opt_params['cm_call_jk'] = opt_params['cm']
+
+        # Normalised call price; log-moneyness x = log(F/K)
+        opt_params['beta_jk'] = (
+            opt_params['cm_call_jk']
+            / (opt_params['D_jk'] * opt_params['F_jk']))
+        opt_params['x_jk'] = np.log(opt_params['F_jk'] / opt_params['K'])
+
+        # Normalised intrinsic value and no-arbitrage bounds
+        opt_params['beta_intrinsic_jk'] = max(
+            1.0 - np.exp(-opt_params['x_jk']), 0.0)
+        if (opt_params['beta_jk'] <= opt_params['beta_intrinsic_jk'] + 1e-14
+                or opt_params['beta_jk'] >= 1.0 - 1e-14):
+            return 'NA'
+
+        # Reflect ITM calls to OTM to obtain absolute moneyness and OTM price
+        if opt_params['x_jk'] > 0.0:
+            opt_params['x_abs_jk'] = opt_params['x_jk']
+            opt_params['p_jk'] = (
+                opt_params['beta_jk']
+                - (1.0 - np.exp(-opt_params['x_jk'])))
+        else:
+            opt_params['x_abs_jk'] = -opt_params['x_jk']
+            opt_params['p_jk'] = opt_params['beta_jk']
+
+        if opt_params['p_jk'] <= 0.0:
+            return 'NA'
+
+        # --- Initial guess: four regimes based on moneyness and price ---
+
+        if opt_params['x_abs_jk'] < 1e-7:
+            # Regime 1 — ATM: inversion of beta ≈ sigma / sqrt(2*pi)
+            opt_params['sigma_jk'] = opt_params['sqrt2pi'] * opt_params['beta_jk']
+
+        elif opt_params['p_jk'] >= 0.05:
+            # Regimes 2 & 3 — moderate OTM: interpolates between the ATM
+            # limit (sigma ≈ p*sqrt(2*pi)) and moneyness limit (sigma ≈ |x|)
+            opt_params['sigma_jk'] = np.sqrt(
+                opt_params['x_abs_jk'] * opt_params['x_abs_jk']
+                + (opt_params['sqrt2pi'] * opt_params['p_jk'])
+                * (opt_params['sqrt2pi'] * opt_params['p_jk']))
+
+        else:
+            # Regime 4 — deep OTM: Mills-ratio approximation of the normal
+            # tail gives |d+| ≈ sqrt(-2*log(p)), so sigma ≈ |x| / |d+|
+            opt_params['log_p_jk'] = np.log(opt_params['p_jk'])
+            if -2.0 * opt_params['log_p_jk'] < 1e-14:
+                return 'NA'
+            opt_params['sigma_jk'] = (
+                opt_params['x_abs_jk']
+                / np.sqrt(-2.0 * opt_params['log_p_jk']))
+
+        opt_params['sigma_jk'] = max(min(opt_params['sigma_jk'], 10.0), 1e-9)
+
+        # --- Halley iteration ---
+        # Normalised vega:  f'  = phi(d+)
+        # Second deriv:     f'' = phi(d+) * d+ * (x / sigma^2 - 0.5)
+        # Halley step:      sigma -= 2*eta / (2 - eta * f2r)
+        #   where eta = residual / vega  and  f2r = f'' / f'
+
+        for _ in range(8):
+            opt_params['x_iter_jk'] = opt_params['x_jk']
+            opt_params['sigma_iter_jk'] = opt_params['sigma_jk']
+
+            opt_params['d_p_jk'] = (
+                opt_params['x_iter_jk'] / opt_params['sigma_iter_jk']
+                + 0.5 * opt_params['sigma_iter_jk'])
+            opt_params['d_m_jk'] = opt_params['d_p_jk'] - opt_params['sigma_iter_jk']
+
+            # Normalised Black via erfcx: Phi(d) = erfcx(-d/sqrt(2))*exp(-d^2/2)/2
+            # Avoids underflow to zero for large negative d values
+            opt_params['beta_calc_jk'] = (
+                erfcx(-opt_params['d_p_jk'] / opt_params['sqrt2'])
+                * np.exp(-0.5 * opt_params['d_p_jk'] * opt_params['d_p_jk'])
+                - np.exp(-opt_params['x_iter_jk'])
+                * erfcx(-opt_params['d_m_jk'] / opt_params['sqrt2'])
+                * np.exp(-0.5 * opt_params['d_m_jk'] * opt_params['d_m_jk'])
+            ) / 2.0
+
+            opt_params['residual_jk'] = (
+                opt_params['beta_calc_jk'] - opt_params['beta_jk'])
+
+            if abs(opt_params['residual_jk']) < 1e-14:
+                break
+
+            opt_params['vega_jk'] = si.norm.pdf(opt_params['d_p_jk'])
+            if opt_params['vega_jk'] < 1e-16:
+                break
+
+            opt_params['eta_jk'] = (
+                opt_params['residual_jk'] / opt_params['vega_jk'])
+            opt_params['f2r_jk'] = (
+                opt_params['d_p_jk']
+                * (opt_params['x_iter_jk']
+                / (opt_params['sigma_iter_jk'] * opt_params['sigma_iter_jk'])
+                - 0.5))
+            opt_params['halley_denom_jk'] = (
+                2.0 - opt_params['eta_jk'] * opt_params['f2r_jk'])
+
+            if abs(opt_params['halley_denom_jk']) < 1e-14:
+                opt_params['sigma_jk'] = (
+                    opt_params['sigma_iter_jk'] - opt_params['eta_jk'])
+            else:
+                opt_params['sigma_jk'] = (
+                    opt_params['sigma_iter_jk']
+                    - 2.0 * opt_params['eta_jk']
+                    / opt_params['halley_denom_jk'])
+
+            opt_params['sigma_jk'] = max(opt_params['sigma_jk'], 1e-9)
+
+        # Convert total vol sigma = sigma_ann * sqrt(T) back to annualised
+        result = opt_params['sigma_jk'] / np.sqrt(opt_params['T'])
+        return result
+    
+
+    @classmethod
+    def implied_vol_inverse_gauss(cls, opt_params: dict) -> float | str:
+        """
+        Finds implied volatility using an explicit closed-form solution
+        via the inverse Gaussian quantile function (Schadner, 2026).
+
+        The normalised call price is identified as the survival probability
+        of an inverse Gaussian distribution. Inverting this identity gives
+        implied volatility directly, requiring no initial guess, iterative
+        inversion, or approximation.
+
+        Parameters
+        ----------
+        S : Float
+            Stock Price. The default is 100.
+        K : Float
+            Strike Price. The default is 100.
+        T : Float
+            Time to Maturity. The default is 0.25 (3 Months).
+        r : Float
+            Interest Rate. The default is 0.005 (50bps).
+        q : Float
+            Dividend Yield. The default is 0.
+        cm : Float
+            Option price used to solve for vol. The default is 5.
+        option : Str
+            Type of option. 'put' or 'call'. The default is 'call'.
+
+        Returns
+        -------
+        result : Float
+            Implied Volatility.
+
+        References
+        ----------
+        Schadner, W. (2026). An Explicit Solution to Black-Scholes Implied
+        Volatility. arXiv:2604.24480.
+
+        Notes
+        -----
+        Uses scipy.stats.invgauss, which parameterises the inverse Gaussian
+        as IG(mu, lambda=1) when scale=1, matching the paper's convention.
+        """
+
+        # Forward price and discount factor
+        opt_params['F'] = (opt_params['S']
+                        * np.exp((opt_params['r'] - opt_params['q'])
+                                    * opt_params['T']))
+        opt_params['D'] = np.exp(-opt_params['r'] * opt_params['T'])
+
+        # Normalised call price - convert put to call via put-call parity first
+        if opt_params['option'] == 'put':
+            opt_params['cm_call'] = (opt_params['cm']
+                                    + opt_params['D']
+                                    * (opt_params['F'] - opt_params['K']))
+        else:
+            opt_params['cm_call'] = opt_params['cm']
+
+        opt_params['c'] = opt_params['cm_call'] / (opt_params['D']
+                                                    * opt_params['F'])
+
+        # Forward log-moneyness
+        opt_params['k'] = np.log(opt_params['K'] / opt_params['F'])
+
+        # At-the-forward: closed-form via normal quantile (Eq. 2)
+        if opt_params['k'] == 0:
+            result = ((2 / np.sqrt(opt_params['T']))
+                    * si.norm.ppf((opt_params['c'] + 1) / 2))
+            return result
+
+        # Scaling factor for in-the-money calls (Eq. 1)
+        opt_params['m'] = (1.0 if opt_params['K'] > opt_params['F']
+                        else opt_params['K'] / opt_params['F'])
+
+        # Inverse Gaussian quantile (Eq. 1)
+        # IG mean parameter mu = 2 / |k|, shape lambda = 1 (scipy scale=1)
+        opt_params['ig_mu'] = 2.0 / abs(opt_params['k'])
+        opt_params['ig_q'] = (1.0 - opt_params['c']) / opt_params['m']
+
+        # Guard against quantile arguments outside (0, 1)
+        if not (0.0 < opt_params['ig_q'] < 1.0):
+            return 'NA'
+
+        opt_params['ig_quantile'] = si.invgauss.ppf(opt_params['ig_q'],
+                                                    opt_params['ig_mu'])
+
+        if opt_params['ig_quantile'] <= 0:
+            return 'NA'
+
+        # Total implied volatility v = 2 / sqrt(quantile), then sigma = v / sqrt(T)
+        opt_params['vi'] = 2.0 / np.sqrt(opt_params['ig_quantile'])
+        result = opt_params['vi'] / np.sqrt(opt_params['T'])
 
         return result
 
