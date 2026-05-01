@@ -75,8 +75,7 @@ class Volatility():
             Degree of precision to return implied vol. The default
             is 0.001.
         method : Str
-            Implied Vol method; 'nr', 'bisection' or 'naive'. The
-            default is 'nr'.
+            Implied Vol method; 'nr', 'gauss', 'jaeckel', 'bisection' or 'naive'. The default is 'gauss'.
         precomputed_data : DataFrame
             Pre-computed data containing calibrated discount rates and option prices
 
