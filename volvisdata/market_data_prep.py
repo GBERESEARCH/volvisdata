@@ -620,8 +620,7 @@ class DataPrep():
         option : Str
             Option type; 'put' or 'call'.
         method : Str
-            Implied Vol method; 'newtonraphson', 'bisection' or
-            'iv_naive'.
+            Implied Vol method; 'nr', 'gauss', 'jaeckel', 'bisection' or 'naive'. The default is 'gauss'.
 
         Returns
         -------
