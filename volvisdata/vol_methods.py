@@ -574,34 +574,37 @@ class ImpliedVol():
                                     * opt_params['T']))
         opt_params['D'] = np.exp(-opt_params['r'] * opt_params['T'])
 
-        # Normalised call price - convert put to call via put-call parity first
-        if opt_params['option'] == 'put':
-            opt_params['cm_call'] = (opt_params['cm']
-                                    + opt_params['D']
-                                    * (opt_params['F'] - opt_params['K']))
-        else:
-            opt_params['cm_call'] = opt_params['cm']
-
-        opt_params['c'] = opt_params['cm_call'] / (opt_params['D']
-                                                    * opt_params['F'])
-
         # Forward log-moneyness
         opt_params['k'] = np.log(opt_params['K'] / opt_params['F'])
 
+        # Normalised price per option type
+        opt_params['c'] = opt_params['cm'] / (opt_params['D'] * opt_params['F'])
+
         # At-the-forward: closed-form via normal quantile (Eq. 2)
         if opt_params['k'] == 0:
-            result = ((2 / np.sqrt(opt_params['T']))
-                    * si.norm.ppf((opt_params['c'] + 1) / 2))
+            if opt_params['option'] == 'put':
+                # For ATM put: p = 1 - c from put-call parity at k=0,
+                # so Phi^-1((1-p+1)/2) = Phi^-1((2-c)/2) ... simplifies to:
+                result = ((2 / np.sqrt(opt_params['T']))
+                        * si.norm.ppf(1 - opt_params['c'] / 2))
+            else:
+                result = ((2 / np.sqrt(opt_params['T']))
+                        * si.norm.ppf((opt_params['c'] + 1) / 2))
             return result
 
-        # Scaling factor for in-the-money calls (Eq. 1)
+        # Scaling factor m (same for both call and put, Eq. 1 and Eq. 9)
         opt_params['m'] = (1.0 if opt_params['K'] > opt_params['F']
                         else opt_params['K'] / opt_params['F'])
 
-        # Inverse Gaussian quantile (Eq. 1)
         # IG mean parameter mu = 2 / |k|, shape lambda = 1 (scipy scale=1)
         opt_params['ig_mu'] = 2.0 / abs(opt_params['k'])
-        opt_params['ig_q'] = (1.0 - opt_params['c']) / opt_params['m']
+
+        # Probability argument per option type (Eq. 1 for calls, Eq. 9 for puts)
+        if opt_params['option'] == 'put':
+            opt_params['ig_q'] = ((np.exp(opt_params['k']) - opt_params['c'])
+                                / opt_params['m'])
+        else:
+            opt_params['ig_q'] = (1.0 - opt_params['c']) / opt_params['m']
 
         # Guard against quantile arguments outside (0, 1)
         if not (0.0 < opt_params['ig_q'] < 1.0):
