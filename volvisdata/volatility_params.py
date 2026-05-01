@@ -33,7 +33,7 @@ vol_params_dict = {
     'r': 0.005,
     'q': 0,
     'epsilon': 0.001,
-    'method': 'nr',
+    'method': 'gauss',
     'discount_type': 'smooth',
     'yield_curve': None,
     
@@ -376,6 +376,8 @@ vol_params_dict = {
     
     'method_dict': {
         'nr': 'implied_vol_newton_raphson',
+        'gauss':'implied_vol_inverse_gauss',
+        'jaeckel':'implied_vol_jaeckel',
         'bisection': 'implied_vol_bisection',
         'naive': 'implied_vol_naive'
     },
