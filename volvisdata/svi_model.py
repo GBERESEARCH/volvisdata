@@ -46,6 +46,19 @@ class SVIModel:
         """
         return a + b * (rho * (k - m) + np.sqrt((k - m)**2 + sigma**2))
 
+
+    @staticmethod
+    def forward_price(ttm_data, spot: float, ttm: float, params: dict) -> float:
+        """
+        Forward price for one maturity. With voldiscount data, uses the
+        calibrated discount rate applied in the implied vol calculation;
+        otherwise uses params['r'] and params['q'].
+        """
+        if 'precomputed_data' in params:
+            return spot * np.exp(ttm_data['Discount Rate'].iloc[0] * ttm)
+        return spot * np.exp((params['r'] - params['q']) * ttm)
+
+
     @classmethod
     def svi_calibrate(cls, strikes: np.ndarray, vols: np.ndarray, ttm: float, 
                      forward_price: float, params: dict) -> tuple[float, float, float, float, float]:
@@ -167,7 +180,8 @@ class SVIModel:
             vols = np.array(ttm_data[vol_col])
 
             spot = params['spot'] if params['spot'] is not None else params['extracted_spot']
-            forward_price = spot * np.exp((params['r'] - params['q']) * ttm)
+            forward_price = cls.forward_price(ttm_data, spot, ttm, params)
+
 
             a, b, rho, m, sigma = cls.svi_calibrate(strikes, vols, ttm, forward_price, params)
             
@@ -197,7 +211,7 @@ class SVIModel:
                 vol_col = params['vols_dict'][params['voltype']]
                 vols = np.array(ttm_data[vol_col])
                 spot = params['spot'] if params['spot'] is not None else params['extracted_spot']
-                forward_price = spot * np.exp((params['r'] - params['q']) * ttm)
+                forward_price = cls.forward_price(ttm_data, spot, ttm, params)
                 
                 k = np.log(strikes / forward_price)
                 p = svi_params[ttm]
@@ -246,9 +260,9 @@ class SVIModel:
         total_variance_dict = {}
         
         for ttm in ttms:
-            forward_prices[ttm] = spot * np.exp((params['r'] - params['q']) * ttm)
-            
             ttm_data = data[data['TTM'] == ttm]
+            forward_prices[ttm] = cls.forward_price(ttm_data, spot, ttm, params)
+
             strikes = np.array(ttm_data['Strike'])
             vol_col = params['vols_dict'][params['voltype']]
             vols = np.array(ttm_data[vol_col])
