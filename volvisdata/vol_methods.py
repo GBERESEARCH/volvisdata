@@ -580,16 +580,22 @@ class ImpliedVol():
         # Normalised price per option type
         opt_params['c'] = opt_params['cm'] / (opt_params['D'] * opt_params['F'])
 
-        # At-the-forward: closed-form via normal quantile (Eq. 2)
+        # Normalised intrinsic value; no solution if the price has no time
+        # value
+        if opt_params['option'] == 'put':
+            opt_params['c_intrinsic'] = max(np.exp(opt_params['k']) - 1.0, 0.0)
+        else:
+            opt_params['c_intrinsic'] = max(1.0 - np.exp(opt_params['k']), 0.0)
+        if opt_params['c'] <= opt_params['c_intrinsic'] + 1e-14:
+            return 'NA'
+
+        # At the forward: closed form via the normal quantile (Eq. 2). Call
+        # and put prices are equal here by put-call parity
         if opt_params['k'] == 0:
-            if opt_params['option'] == 'put':
-                # For ATM put: p = 1 - c from put-call parity at k=0,
-                # so Phi^-1((1-p+1)/2) = Phi^-1((2-c)/2) ... simplifies to:
-                result = ((2 / np.sqrt(opt_params['T']))
-                        * si.norm.ppf(1 - opt_params['c'] / 2))
-            else:
-                result = ((2 / np.sqrt(opt_params['T']))
-                        * si.norm.ppf((opt_params['c'] + 1) / 2))
+            if opt_params['c'] >= 1.0:
+                return 'NA'
+            result = ((2 / np.sqrt(opt_params['T']))
+                      * si.norm.ppf((opt_params['c'] + 1) / 2))
             return result
 
         # Scaling factor m (same for both call and put, Eq. 1 and Eq. 9)
@@ -613,7 +619,8 @@ class ImpliedVol():
         opt_params['ig_quantile'] = si.invgauss.ppf(opt_params['ig_q'],
                                                     opt_params['ig_mu'])
 
-        if opt_params['ig_quantile'] <= 0:
+        if (not np.isfinite(opt_params['ig_quantile']) 
+            or opt_params['ig_quantile'] <= 0):
             return 'NA'
 
         # Total implied volatility v = 2 / sqrt(quantile), then sigma = v / sqrt(T)
