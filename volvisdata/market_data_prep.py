@@ -430,9 +430,15 @@ class DataPrep():
 
             print('Call option after vol: ', opt_name)
 
+        # Batch: drop rows missing a vol for the selected voltype only.
+        # Otherwise drop rows missing a vol for any price type.
+        if params['batch_vol_clean']:
+            tables['imp_vol_data'] = pd.concat(params['opt_list']).dropna(
+                subset=[params['vols_dict'][params['voltype']]])
+        else:
         # Concatenate all the option results into a single DataFrame and drop
         # any null values
-        tables['imp_vol_data'] = pd.concat(params['opt_list']).dropna()
+            tables['imp_vol_data'] = pd.concat(params['opt_list']).dropna()
 
         # If a minopts parameter is supplied, filter for number of options
         # greater than parameter

@@ -36,6 +36,7 @@ vol_params_dict = {
     'method': 'gauss',
     'discount_type': 'smooth',
     'yield_curve': None,
+    'batch_vol_clean': False,  # True: drop rows missing a vol for the selected voltype only
     
     # ============================================================================
     # VISUALIZATION PARAMETERS
